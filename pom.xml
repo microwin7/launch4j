@@ -4,7 +4,7 @@
     
 	<groupId>org.bidib.net.sf.launch4j</groupId>
 	<artifactId>launch4j</artifactId>
-	<version>3.13</version>
+	<version>3.13.4</version>
 	
     <name>Launch4j</name>
 	<description>Cross-platform Java executable wrapper for creating lightweight Windows native EXEs. Provides advanced JRE search, application startup configuration and better user experience.</description>
@@ -50,8 +50,8 @@
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<versionNumber>3.13.0.0</versionNumber>
-		<version>3.13</version>
+		<versionNumber>3.13.4.0</versionNumber>
+		<version>3.13.4</version>
 	</properties>
 
 	<dependencies>
@@ -315,7 +315,7 @@
 					<plugin>
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-source-plugin</artifactId>
-						<version>2.3</version>
+						<version>3.2.0</version>
 						<executions>
 							<execution>
 								<id>attach-sources</id>
@@ -328,50 +328,55 @@
 					<plugin>
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-javadoc-plugin</artifactId>
-						<version>3.0.1</version>
+						<version>3.1.1</version>
 						<executions>
 							<execution>
 								<id>attach-javadocs</id>
 								<goals>
 									<goal>jar</goal>
 								</goals>
+								<!-- add this to disable checking under JDK8 -->
+								<configuration>
+									<doclint>none</doclint>
+								</configuration>
 							</execution>
 						</executions>
-                        <!-- add this to disable checking under JDK8 -->
+					</plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+						<version>1.6</version>
                         <configuration>
-                            <doclint>none</doclint>
+							<!--
+                            <passphrase>${gpg.passphrase}</passphrase>
+                            <useAgent>${gpg.useagent}</useAgent>
+							-->
+                            <gpgArguments>
+                                <arg>--pinentry-mode</arg>
+                                <arg>loopback</arg>
+                            </gpgArguments>
                         </configuration>
-					</plugin>
-					<plugin>
-						<groupId>org.apache.maven.plugins</groupId>
-						<artifactId>maven-gpg-plugin</artifactId>
-						<version>1.5</version>
-						<executions>
-							<execution>
-								<id>sign-artifacts</id>
-								<goals>
-									<goal>sign</goal>
-								</goals>
-							</execution>
-						</executions>
-					</plugin>
-                    <!--
-					<plugin>
-						<groupId>org.sonatype.plugins</groupId>
-						<artifactId>nexus-staging-maven-plugin</artifactId>
-						<version>1.6.2</version>
-						<extensions>true</extensions>
-						<configuration>
-							<serverId>ossrh</serverId>
-							<nexusUrl>https://oss.sonatype.org/</nexusUrl>
-                    -->
-							<!-- Release has to be executed manually -->
-                    <!--
-							<autoReleaseAfterClose>false</autoReleaseAfterClose>
-						</configuration>
-					</plugin>
-                    -->
-
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.sonatype.plugins</groupId>
+                        <artifactId>nexus-staging-maven-plugin</artifactId>
+						<version>1.6.8</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <serverId>ossrh</serverId>
+                            <nexusUrl>https://oss.sonatype.org/</nexusUrl>
+                            <!-- autoReleaseAfterClose>true</autoReleaseAfterClose -->
+                        </configuration>
+                    </plugin>
 				</plugins>
 			</build>
 		</profile>
@@ -399,9 +404,10 @@
 				<plugins>					
 					<!-- Creates Launch4j executable -->
 					<plugin>
-						<groupId>com.akathist.maven.plugins.launch4j</groupId>
+						<!-- groupId>com.akathist.maven.plugins.launch4j</groupId -->
+						<groupId>org.bidib.com.akathist.maven.plugins.launch4j</groupId>
 						<artifactId>launch4j-maven-plugin</artifactId>
-						<version>1.6</version>
+						<version>1.7.26</version>
 						<executions>
 							<execution>
 								<id>launch4j</id>

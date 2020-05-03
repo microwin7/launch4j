@@ -314,6 +314,8 @@ BOOL regQueryValue(const char* regPath, unsigned char* buffer,
 
 int findNextVersionPart(const char* startAt)
 {
+//	debugAll("findNext:\t\t%s\n", startAt);
+	
 	if (startAt == NULL || strlen(startAt) == 0)
     {
 		return 0;
@@ -322,14 +324,26 @@ int findNextVersionPart(const char* startAt)
 	char* firstSeparatorA = strchr(startAt, '.');
 	char* firstSeparatorB = strchr(startAt, '_');
 	char* firstSeparatorC = strchr(startAt, 'u');
-	char* firstSeparator;
-    if (firstSeparatorC != NULL)
+	char* firstSeparatorD = strchr(startAt, '+');  // bellsoft
+	char* firstSeparator = NULL;
+	
+	// search for dots first
+	if (firstSeparatorA == NULL)
     {
-		firstSeparator = firstSeparatorC;
-	}
-    else if (firstSeparatorA == NULL)
-    {
-		firstSeparator = firstSeparatorB;
+		// if no dot is found search for '_' and others
+		if (firstSeparatorB != NULL) 
+		{
+			firstSeparator = firstSeparatorB;
+		}
+		else if (firstSeparatorC != NULL) 
+		{
+			firstSeparator = firstSeparatorC;
+		}
+		else if (firstSeparatorD != NULL) 
+		{
+			firstSeparator = firstSeparatorD;
+		}
+//		debugAll("firstSeparator:\t\t%s\n", firstSeparator);
 	}
     else if (firstSeparatorB == NULL)
     {
@@ -342,6 +356,7 @@ int findNextVersionPart(const char* startAt)
 
 	if (firstSeparator == NULL)
     {
+//        debug("No separator found, return: %d\n", strlen(startAt));
 		return strlen(startAt);
 	}
 
@@ -419,6 +434,8 @@ void formatJavaVersion(char* version, const char* originalVersion)
 			break;
 		}
 	}
+	
+	debug("parts added: %d\n", partsAdded);
 
 	for (i = partsAdded; i < 3; i++)
     {
@@ -467,8 +484,11 @@ void regSearch(const char* keyName, const int searchType)
 		strcpy(fullKeyName, keyName);
 		appendPath(fullKeyName, originalVersion);
 		debug("Check:\t\t%s\n", fullKeyName);
+		debug("Check org version:\t\t%s\n", originalVersion);
+
         formatJavaVersion(version, originalVersion);
 
+        debug("Checked:\t\t%s\n", version);
 		if (strcmp(version, search.javaMinVer) >= 0
 				&& (!*search.javaMaxVer || strcmp(version, search.javaMaxVer) <= 0)
 				&& strcmp(version, search.foundJavaVer) > 0
@@ -509,6 +529,8 @@ BOOL isJavaHomeValid(const char* keyName, const int searchType)
 		strcpy(searchValueName, "JavaHome");
 		strcpy(searchKeyName, keyName);
 	}
+
+    debug("Check JavaHome:\t\t%s\n", searchKeyName);
 
 	if (RegOpenKeyEx(HKEY_LOCAL_MACHINE,
 			searchKeyName,
