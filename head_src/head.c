@@ -2,7 +2,7 @@
 	Launch4j (http://launch4j.sourceforge.net/)
 	Cross-platform Java application wrapper for creating Windows native executables.
 
-	Copyright (c) 2004, 2015 Grzegorz Kowal,
+	Copyright (c) 2004, 2019 Grzegorz Kowal,
 							 Ian Roberts (jdk preference patch)
 							 Sylvain Mina (single instance patch)
 
@@ -314,6 +314,8 @@ BOOL regQueryValue(const char* regPath, unsigned char* buffer,
 
 int findNextVersionPart(const char* startAt)
 {
+//	debugAll("findNext:\t\t%s\n", startAt);
+	
 	if (startAt == NULL || strlen(startAt) == 0)
     {
 		return 0;
@@ -321,10 +323,27 @@ int findNextVersionPart(const char* startAt)
 
 	char* firstSeparatorA = strchr(startAt, '.');
 	char* firstSeparatorB = strchr(startAt, '_');
-	char* firstSeparator;
+	char* firstSeparatorC = strchr(startAt, 'u');
+	char* firstSeparatorD = strchr(startAt, '+');  // bellsoft
+	char* firstSeparator = NULL;
+	
+	// search for dots first
 	if (firstSeparatorA == NULL)
     {
-		firstSeparator = firstSeparatorB;
+		// if no dot is found search for '_' and others
+		if (firstSeparatorB != NULL) 
+		{
+			firstSeparator = firstSeparatorB;
+		}
+		else if (firstSeparatorC != NULL) 
+		{
+			firstSeparator = firstSeparatorC;
+		}
+		else if (firstSeparatorD != NULL) 
+		{
+			firstSeparator = firstSeparatorD;
+		}
+//		debugAll("firstSeparator:\t\t%s\n", firstSeparator);
 	}
     else if (firstSeparatorB == NULL)
     {
@@ -337,6 +356,7 @@ int findNextVersionPart(const char* startAt)
 
 	if (firstSeparator == NULL)
     {
+//        debug("No separator found, return: %d\n", strlen(startAt));
 		return strlen(startAt);
 	}
 
@@ -414,6 +434,8 @@ void formatJavaVersion(char* version, const char* originalVersion)
 			break;
 		}
 	}
+	
+	debug("parts added: %d\n", partsAdded);
 
 	for (i = partsAdded; i < 3; i++)
     {
@@ -462,8 +484,11 @@ void regSearch(const char* keyName, const int searchType)
 		strcpy(fullKeyName, keyName);
 		appendPath(fullKeyName, originalVersion);
 		debug("Check:\t\t%s\n", fullKeyName);
+		debug("Check org version:\t\t%s\n", originalVersion);
+
         formatJavaVersion(version, originalVersion);
 
+        debug("Checked:\t\t%s\n", version);
 		if (strcmp(version, search.javaMinVer) >= 0
 				&& (!*search.javaMaxVer || strcmp(version, search.javaMaxVer) <= 0)
 				&& strcmp(version, search.foundJavaVer) > 0
@@ -490,9 +515,25 @@ BOOL isJavaHomeValid(const char* keyName, const int searchType)
 	BOOL valid = FALSE;
 	HKEY hKey;
 	char path[_MAX_PATH] = {0};
+	
+	char searchKeyName[_MAX_PATH] = {0};
+	char searchValueName[_MAX_PATH] = {0};
+	if(strstr(keyName, "AdoptOpenJDK") != NULL)
+	{
+		strcpy(searchValueName, "Path");
+		strcpy(searchKeyName, keyName);
+		appendPath(searchKeyName, "hotspot\\MSI");		
+	}
+	else 
+	{
+		strcpy(searchValueName, "JavaHome");
+		strcpy(searchKeyName, keyName);
+	}
+
+    debug("Check JavaHome:\t\t%s\n", searchKeyName);
 
 	if (RegOpenKeyEx(HKEY_LOCAL_MACHINE,
-			keyName,
+			searchKeyName,
 			0,
             KEY_READ | (searchType & KEY_WOW64_64KEY),
 			&hKey) == ERROR_SUCCESS)
@@ -501,7 +542,7 @@ BOOL isJavaHomeValid(const char* keyName, const int searchType)
 		unsigned long bufferlength = _MAX_PATH;
 		unsigned long datatype;
 
-		if (RegQueryValueEx(hKey, "JavaHome", NULL, &datatype, buffer,
+		if (RegQueryValueEx(hKey, searchValueName, NULL, &datatype, buffer,
 				&bufferlength) == ERROR_SUCCESS)
 		{
 			int i = 0;
@@ -652,6 +693,14 @@ BOOL findJavaHome(char* path, const int jdkPreference)
 	{
 		regSearchJreSdk("SOFTWARE\\IBM\\Java2 Runtime Environment",
 						"SOFTWARE\\IBM\\Java Development Kit",
+						jdkPreference);
+	}
+	
+	// AdoptOpenJDK
+	if (search.foundJava == NO_JAVA_FOUND)
+	{
+		regSearchJreSdk("SOFTWARE\\AdoptOpenJDK\\JRE",
+						"SOFTWARE\\AdoptOpenJDK\\JDK",
 						jdkPreference);
 	}
 	
@@ -914,7 +963,7 @@ void setWorkingDirectory(const char *exePath, const int pathLen)
 BOOL bundledJreSearch(const char *exePath, const int pathLen)
 {
     debugAll("bundledJreSearch()\n");
-	char tmpPath[_MAX_PATH] = {0};
+	char jrePathSpec[_MAX_PATH] = {0};
     BOOL is64BitJre = loadBool(BUNDLED_JRE_64_BIT);
 
     if (!wow64 && is64BitJre)
@@ -923,30 +972,53 @@ BOOL bundledJreSearch(const char *exePath, const int pathLen)
         return FALSE;
     }
     
-	if (loadString(JRE_PATH, tmpPath))
+	if (loadString(JRE_PATH, jrePathSpec))
 	{
 		char jrePath[MAX_ARGS] = {0};
-		expandVars(jrePath, tmpPath, exePath, pathLen);
-		debug("Bundled JRE:\t%s\n", jrePath);
+		expandVars(jrePath, jrePathSpec, exePath, pathLen);
+		debug("Bundled JRE(s):\t%s\n", jrePath);
+        char* path = strtok(jrePath, ";");
+        
+        while (path != NULL)
+        {
+            char pathNoBin[_MAX_PATH] = {0};
+            char *lastBackslash = strrchr(path, '\\');
+            char *lastSlash = strrchr(path, '/');
 
-		if (jrePath[0] == '\\' || jrePath[1] == ':')
-		{
-			// Absolute
-			strcpy(launcher.cmd, jrePath);
-		}
-		else
-		{
-			// Relative
-			strncpy(launcher.cmd, exePath, pathLen);
-			appendPath(launcher.cmd, jrePath);
-		}
+            if (lastBackslash != NULL && strcasecmp(lastBackslash, "\\bin") == 0)
+            {
+                strncpy(pathNoBin, path, lastBackslash - path);
+            }
+            else if (lastSlash != NULL && strcasecmp(lastSlash, "/bin") == 0)
+            {
+                strncpy(pathNoBin, path, lastSlash - path);
+            }
+            else
+            {
+                strcpy(pathNoBin, path);
+            }
 
-		if (isLauncherPathValid(launcher.cmd))
-		{
-            search.foundJava = is64BitJre ? FOUND_BUNDLED | KEY_WOW64_64KEY : FOUND_BUNDLED;
-			strcpy(search.foundJavaHome, launcher.cmd);
-			return TRUE;
-		}
+            if (*pathNoBin == '\\' || (*pathNoBin != '\0' && *(pathNoBin + 1) == ':'))
+    		{
+    			// Absolute
+    			strcpy(launcher.cmd, pathNoBin);
+    		}
+    		else
+    		{
+    			// Relative
+    			strncpy(launcher.cmd, exePath, pathLen);
+    			appendPath(launcher.cmd, pathNoBin);
+    		}
+
+    		if (isLauncherPathValid(launcher.cmd))
+    		{
+                search.foundJava = is64BitJre ? FOUND_BUNDLED | KEY_WOW64_64KEY : FOUND_BUNDLED;
+    			strcpy(search.foundJavaHome, launcher.cmd);
+    			return TRUE;
+    		}
+
+            path = strtok(NULL, ";");
+        }
     }
 
     return FALSE;
